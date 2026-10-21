@@ -1,10 +1,10 @@
-# AllyMailer axum 1.0.0
+# AllyMailer axum
 
-Web API 1.90
-
-Покроковий посібник: [Надсилання листів на Rust](https://docs.allymailer.com.ua/ua/send-with-rust) · Документація для LLM: [llms.txt](https://docs.allymailer.com.ua/llms.txt) · [Довідник API](https://docs.allymailer.com.ua/ua/web-api-ref)
+[![axum](https://img.shields.io/crates/v/allymailer-axum)](https://crates.io/crates/allymailer-axum) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 Інтеграція [Rust SDK AllyMailer](https://github.com/allymailer/allymailer-rust-sdk) (`allymailer-rust-sdk`) з axum: клієнт API в axum state / `Extension`, ендпоінт вебхуків із перевіркою підпису.
+
+[Довідник API](https://docs.allymailer.com.ua/ua/web-api-ref) · Документація для LLM: [llms.txt](https://docs.allymailer.com.ua/llms.txt)
 
 ## Встановлення
 
@@ -14,22 +14,13 @@ cargo add allymailer-axum allymailer-rust-sdk
 
 Вимоги: Rust 1.75+, axum 0.7, tokio.
 
-## Отримайте API-ключ
+## Налаштування
 
-1. Зареєструйтеся на [cp.allymailer.com](https://cp.allymailer.com).
-2. Скопіюйте API-ключ у [панелі керування](https://cp.allymailer.com).
-3. Покладіть його у змінну оточення:
+Отримайте API-ключ у [панелі керування](https://cp.allymailer.com) і зберігайте його у змінній оточення, а не в коді:
 
 ```bash
 export ALLYMAILER_API_KEY="your-api-key"
 ```
-
-Пакет бере його з `ALLYMAILER_API_KEY` (див. налаштування нижче).
-
-> **Лише на сервері.** Використовуйте цей пакет у серверному коді: API-маршрути, серверні функції, воркери.
-> Ніколи не передавайте API-ключ у браузер чи мобільний застосунок і не комітьте його.
-
-## Налаштування
 
 За замовчуванням налаштування беруться зі змінних оточення:
 
@@ -47,126 +38,6 @@ ALLYMAILER_HOST=cp.allymailer.com
 | `webhook_path` | `ALLYMAILER_WEBHOOK_PATH` | `/allymailer/webhook` | Шлях ендпоінта вебхуків. |
 
 `Config::from_env()` читає змінні; поля `Config` можна задати і в коді.
-
-## Перший лист — без налаштування DNS
-
-Кожен обліковий запис може одразу надсилати тестові листи із **sandbox-домену**: він уже підтверджений, DKIM і SPF налаштовані.
-Листи доставляються лише на підтверджені вами адреси.
-
-У прикладах — клієнт API з пакета (див. налаштування вище).
-
-**1. Отримайте sandbox-домен** (`domain/get-sandbox-domain`). Перший виклик створює домен, наступні повертають той самий.
-
-```rust
-use axum::Extension;
-use allymailer::AllyMailerClient;
-
-async fn send(Extension(client): Extension<AllyMailerClient>) -> Result<String, String> {
-    let response = client.domain().get_sandbox_domain().await.map_err(|e| e.to_string())?;
-    Ok(format!("{:?}", response.domain))
-}
-```
-
-**2. Підтвердіть свою скриньку** (`confirmed-email/create`). AllyMailer надішле лист із підтвердженням; перейдіть за посиланням із нього протягом 48 годин.
-
-```rust
-use axum::Extension;
-use allymailer::AllyMailerClient;
-use allymailer::api::confirmed_email::model::ConfirmedEmailRequest;
-
-async fn send(Extension(client): Extension<AllyMailerClient>) -> Result<String, String> {
-    let response = client.confirmed_email().create(&ConfirmedEmailRequest {
-        email: "you@example.com".to_string(),
-    }).await.map_err(|e| e.to_string())?;
-    Ok(format!("{:?}", response.status))
-}
-```
-
-Статус перевірте через `confirmed-email/list` — у вашої адреси має бути `"status": "confirmed"`.
-
-**3. Надішліть лист** (`email/send`) з будь-якої адреси sandbox-домену на підтверджену адресу.
-
-```rust
-use axum::Extension;
-use allymailer::AllyMailerClient;
-use allymailer::api::email::model::EmailSendRequest;
-use allymailer::api::email::model::MessageObject;
-use allymailer::api::email::model::MessageObjectRecipientsItem;
-use allymailer::common::model::BodyObject;
-
-async fn send(Extension(client): Extension<AllyMailerClient>) -> Result<String, String> {
-    let response = client.email().send(&EmailSendRequest {
-        message: MessageObject {
-            recipients: vec![
-                MessageObjectRecipientsItem {
-                    email: "you@example.com".to_string(),
-                    ..Default::default()
-                },
-            ],
-            body: BodyObject {
-                html: Some("<p>Працює!</p>".to_string()),
-                ..Default::default()
-            },
-            subject: "Привіт від AllyMailer".to_string(),
-            from_email: Some("noreply@<sandbox-domain>".to_string()),
-            ..Default::default()
-        },
-    }).await.map_err(|e| e.to_string())?;
-    Ok(format!("{:?}", response.job_id))
-}
-```
-
-### Що повертається
-
-```json
-{
-  "status": "success",
-  "job_id": "1ZymBc-00041N-9X",
-  "emails": [
-    "you@example.com"
-  ]
-}
-```
-
-У разі помилки API повертає `status: "error"`, `message` і числовий `code`:
-
-```json
-{
-  "status": "error",
-  "code": 102,
-  "message": "Error ID:83274F98-C7D5-11F1-B221-6214FF8707B1. Can not decode key wrongkey"
-}
-```
-
-### Те саме через curl
-
-```bash
-BASE=https://cp.allymailer.com/ua/transactional/api/v1
-
-curl -s -X POST $BASE/domain/get-sandbox-domain.json \
-  -H "Content-Type: application/json" -H "X-API-KEY: $ALLYMAILER_API_KEY" -d '{}'
-
-curl -s -X POST $BASE/confirmed-email/create.json \
-  -H "Content-Type: application/json" -H "X-API-KEY: $ALLYMAILER_API_KEY" \
-  -d '{"email": "you@example.com"}'
-
-curl -s -X POST $BASE/email/send.json \
-  -H "Content-Type: application/json" -H "X-API-KEY: $ALLYMAILER_API_KEY" \
-  -d '{
-        "message": {
-          "recipients": [
-            {
-              "email": "you@example.com"
-            }
-          ],
-          "from_email": "noreply@<sandbox-domain>",
-          "subject": "Привіт від AllyMailer",
-          "body": {
-            "html": "<p>Працює!</p>"
-          }
-        }
-      }'
-```
 
 ## Вебхуки
 
@@ -199,6 +70,8 @@ let app = app.merge(webhook_router(&config, Events));
 
 Зареєструйте URL ендпоінта методом `webhook/set`, наприклад `https://example.com/allymailer/webhook`.
 
+> **Відповідайте 200 протягом 3 секунд**, а події обробляйте у фоні (через чергу): інакше AllyMailer повторює запит кожні 10 хвилин протягом доби (зростає `retry_count`), а обробник, на якому за добу не пройшов жоден запит хоча б для 10 подій, вимикається. Обробник має витримувати **щонайменше 5 паралельних запитів до 100 подій у кожному**; повтор надсилає ті самі події ще раз — прибирайте дублікати.
+
 ## Клієнт API
 
 Усі розділи API доступні через клієнт, див. [документацію SDK](https://github.com/allymailer/allymailer-rust-sdk).
@@ -221,48 +94,75 @@ let app = Router::new()
     .layer(Extension(config.client()));
 ```
 
-## Надсилання через API
+### Надсилання через API
 
 Клієнт викликає [email/send](https://docs.allymailer.com.ua/ua/web-api-ref#email-send) з усіма його параметрами: шаблони, підстановки, метадані, трекінг. Поля запиту та інші приклади — у [документації Rust SDK](https://github.com/allymailer/allymailer-rust-sdk/blob/HEAD/docs/Email.md#send).
 
 ```rust
-use axum::Extension;
-use allymailer::AllyMailerClient;
 use allymailer::api::email::model::EmailSendRequest;
 use allymailer::api::email::model::MessageObject;
-use allymailer::api::email::model::MessageObjectRecipientsItem;
+use allymailer::api::email::model::MessageObjectRecipientsItem as Recipient;
 use allymailer::common::model::BodyObject;
-use std::collections::HashMap;
+use allymailer::AllyMailerClient;
+use allymailer_wrapper::HandlerError;
+use axum::Extension;
 
-async fn send(Extension(client): Extension<AllyMailerClient>) -> Result<String, String> {
-    let response = client.email().send(&EmailSendRequest {
-        message: MessageObject {
-            recipients: vec![
-                MessageObjectRecipientsItem {
-                    email: "user@example.com".to_string(),
-                    substitutions: Some(HashMap::from([
-                        ("CustomerId".to_string(), "12452".to_string()),
-                        ("to_name".to_string(), "John Smith".to_string()),
-                    ])),
-                    ..Default::default()
-                },
-            ],
-            body: BodyObject {
-                html: Some("<b>Hello, {{to_name}}</b>".to_string()),
-                plaintext: Some("Hello, {{to_name}}".to_string()),
-                ..Default::default()
-            },
-            subject: "AllyMailer test email ".to_string(),
-            from_email: Some("email@example.com".to_string()),
-            from_name: Some("John Smith".to_string()),
-            ..Default::default()
-        },
-    }).await.map_err(|e| e.to_string())?;
-    Ok(format!("{:?}", response.job_id))
+async fn send(Extension(client): Extension<AllyMailerClient>) -> Result<(), HandlerError> {
+    let message = MessageObject {
+        recipients: vec![Recipient::from_address("Олексій <alex@example.com>", None)],
+        from_email: Some("shop@example.com".into()),
+        from_name: Some("Магазин".into()),
+        subject: "Ваше замовлення".into(),
+        body: BodyObject::html("<p>Вітаємо, {{to_name}}! Ваше замовлення надіслано.</p>"),
+        ..Default::default()
+    };
+    client.email().send(&EmailSendRequest { message }).await?;
+    Ok(())
 }
 ```
 
-## Обмеження sandbox
+## Без свого домену: тестовий sandbox-домен
+
+Поки ваш домен не підтверджено, листи можна надсилати із **sandbox-домену** — тестового домену, який є в кожного облікового запису: він уже підтверджений, DKIM і SPF налаштовані. Листи з нього доставляються лише на підтверджені вами адреси (посилання для підтвердження приходить листом і діє 48 годин), до 100 на день. Через 31 день після створення sandbox-домен видаляється, але його можна отримати знову: наступний виклик `domain/get-sandbox-domain` створить новий (з іншою назвою, тому беріть її з відповіді, а не прописуйте в коді).
+
+У прикладах — клієнт API з пакета (див. налаштування вище).
+
+```rust
+use allymailer::api::confirmed_email::model::ConfirmedEmailRequest;
+use allymailer::api::email::model::EmailSendRequest;
+use allymailer::api::email::model::MessageObject;
+use allymailer::api::email::model::MessageObjectRecipientsItem as Recipient;
+use allymailer::common::model::BodyObject;
+use allymailer::AllyMailerClient;
+use allymailer_wrapper::HandlerError;
+use axum::Extension;
+
+async fn try_sandbox(Extension(client): Extension<AllyMailerClient>) -> Result<(), HandlerError> {
+    // 1. Ваш sandbox-домен: створюється під час першого виклику, далі повертається той самий
+    let sandbox = client.domain().get_sandbox_domain().await?;
+    let domain = sandbox.domain.unwrap_or_default();
+
+    // 2. Підтвердіть свою скриньку: AllyMailer надішле посилання, перейдіть за ним протягом 48 годин
+    let confirm = ConfirmedEmailRequest {
+        email: "you@example.com".into(),
+    };
+    client.confirmed_email().create(&confirm).await?;
+
+    // 3. Надішліть із будь-якої адреси sandbox-домену на підтверджену адресу
+    let message = MessageObject {
+        recipients: vec![Recipient::from_address("you@example.com", None)],
+        from_email: Some(format!("noreply@{domain}")),
+        subject: "Привіт від AllyMailer".into(),
+        body: BodyObject::html("<p>Працює!</p>"),
+        ..Default::default()
+    };
+    client.email().send(&EmailSendRequest { message }).await?;
+    Ok(())
+}
+```
+
+<details>
+<summary>Обмеження sandbox</summary>
 
 - Надсилання лише на підтверджені адреси: до 10 на обліковий запис.
 - До 100 листів на день.
@@ -272,38 +172,67 @@ async fn send(Extension(client): Extension<AllyMailerClient>) -> Result<String, 
 
 Sandbox — для розробки та тестування. Не використовуйте sandbox-домен як відправника на проді.
 
-## Перед продом: підтвердіть свій домен
+</details>
 
-1. `domain/get-dns-records` — повертає значення для DNS-записів.
-2. Додайте ці записи у свого DNS-провайдера (їх також показує сторінка домену в панелі керування):
+<details>
+<summary>Те саме через curl</summary>
 
-   | Тип | Хост | Значення |
-   |---|---|---|
-   | TXT | `@` | значення `verification-record` (`allymailer-validate-hash=…`) |
-   | TXT | `<селектор>._domainkey` (селектор — на сторінці домену в панелі керування, наприклад `us`) | `v=DKIM1; k=rsa; p=<dkim>` |
-   | TXT | `@` | `v=spf1 include:spf.allymailer.com ~all` |
-   | CNAME | `_dmarc` | значення `dmarc` |
+```bash
+BASE=https://cp.allymailer.com/ua/transactional/api/v1
 
-3. `domain/validate-verification-record`, потім `domain/validate-dkim`.
-4. `domain/list` — дочекайтеся, поки запис підтвердження буде підтверджено, а DKIM — активний.
-5. Беріть `from_email` з конфігурації, щоб перехід із sandbox не потребував змін у коді.
+curl -s -X POST $BASE/domain/get-sandbox-domain.json \
+  -H "Content-Type: application/json" -H "X-API-KEY: $ALLYMAILER_API_KEY" -d '{}'
 
-## Надійне надсилання
+curl -s -X POST $BASE/confirmed-email/create.json \
+  -H "Content-Type: application/json" -H "X-API-KEY: $ALLYMAILER_API_KEY" \
+  -d '{"email": "you@example.com"}'
 
-- **Повтори:** ставте `message.idempotence_key` у надсиланнях, які можуть повторюватися, щоб повторний запит не надіслав лист двічі.
-- **Ліміти:** до 500 отримувачів і 10 МБ на запит; кожне вкладення до 7 МБ.
-- **Тіло:** завжди передавайте `body.html` або `body.plaintext`.
-- **Статус доставки:** зареєструйте вебхук (`webhook/set`) зі швидким ідемпотентним HTTPS-обробником замість опитування.
-- **Типові налаштування:** не прибирайте стандартний блок відписки та трекінг; змінити їх можна через підтримку AllyMailer.
-- **Помилки:** повторюйте `429` і `5xx` з backoff; інші помилки без змін не повторюйте.
+curl -s -X POST $BASE/email/send.json \
+  -H "Content-Type: application/json" -H "X-API-KEY: $ALLYMAILER_API_KEY" \
+  -d '{
+        "message": {
+          "recipients": [
+            {
+              "email": "you@example.com"
+            }
+          ],
+          "from_email": "noreply@<sandbox-domain>",
+          "subject": "Привіт від AllyMailer",
+          "body": {
+            "html": "<p>Працює!</p>"
+          }
+        }
+      }'
+```
 
-## Посилання
+</details>
 
-- [Надсилання листів на Rust](https://docs.allymailer.com.ua/ua/send-with-rust) та інші [посібники з інтеграції](https://docs.allymailer.com.ua/ua/integrations/)
-- [Довідник Web API](https://docs.allymailer.com.ua/ua/web-api-ref)
-- [llms.txt](https://docs.allymailer.com.ua/llms.txt) для AI-асистентів
-- [Підтримка](https://cp.allymailer.com/ua/support)
+## Запуск у продакшен
 
-## Для розробників пакета
+**1. Підтвердіть домен надсилання.** `domain/get-dns-records` повертає запис підтвердження, DKIM-ключ і адресу для DMARC; додайте записи у свого DNS-провайдера, потім `domain/validate-verification-record` і `domain/validate-dkim`.
 
-Див. [AGENTS.md](AGENTS.md): як цей пакет генерується з OpenAPI-специфікації, збирається, перевіряється та випускається.
+| Тип | Хост | Значення | Звідки взяти |
+|---|---|---|---|
+| TXT | `@` | `allymailer-validate-hash=…` | поле `verification-record` відповіді, як є |
+| TXT | `<селектор>._domainkey` (селектор — на сторінці домену в панелі керування, наприклад `us`) | `v=DKIM1; k=rsa; p=<dkim>` | поле `dkim` відповіді після `v=DKIM1; k=rsa; p=` |
+| TXT | `@` | `v=spf1 include:spf.allymailer.com ~all` | у відповіді немає; якщо SPF-запис уже є, додайте include до нього |
+| CNAME | `_dmarc` | `<домен>.dmarc.…` | поле `dmarc` відповіді (DMARC-політику публікує AllyMailer); якщо в домену вже є свій TXT-запис DMARC, залиште його |
+
+**2. Надійне надсилання.**
+
+| | |
+|---|---|
+| Повтори | `429` і `5xx` з backoff і тим самим `idempotence_key`; інші помилки виправляйте, а не повторюйте |
+| Ліміти | 500 одержувачів і 10 МБ на запит разом із вкладеннями: у base64 файл стає приблизно на третину більшим |
+| Тіло | завжди `html` або `plaintext` (або із шаблону) |
+| Статус доставки | вебхук, а не опитування |
+| Черга | надсилайте з фонового завдання, а не всередині веб-запиту |
+| Налаштування | `from_email` з конфігурації: перехід із sandbox на продакшен без змін у коді |
+| Типові налаштування | не прибирайте блок відписки та трекінг; змінити їх можна через підтримку AllyMailer |
+
+## Допомога
+
+- [Rust SDK](https://github.com/allymailer/allymailer-rust-sdk)
+- Для ШІ-агентів: [llms.txt](https://docs.allymailer.com.ua/llms.txt), скіли: `npx skills add https://github.com/allymailer/allymailer-skills.git`
+- [Підтримка](https://cp.allymailer.com/ua/support) · [Задачі](https://github.com/allymailer/allymailer-axum/issues)
+- Розробникам: [AGENTS.md](AGENTS.md) — пакет генерується з OpenAPI-специфікації.
