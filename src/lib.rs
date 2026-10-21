@@ -34,7 +34,7 @@ use allymailer::client::base_url_for;
 use allymailer::{AllyMailerClient, Configuration};
 
 /// The crate and its version in the "platform" query parameter of the requests, before the SDK one.
-pub const PLATFORM: &str = "axum.1.1.1";
+pub const PLATFORM: &str = "axum.1.1.2";
 
 /// Environment variable of the API key.
 pub const ENV_API_KEY: &str = "ALLYMAILER_API_KEY";

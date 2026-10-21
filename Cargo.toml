@@ -1,6 +1,6 @@
 [package]
 name = "allymailer-axum"
-version = "1.1.1"
+version = "1.1.2"
 edition = "2021"
 rust-version = "1.75"
 description = "AllyMailer Web API for axum: API client from the environment, webhook endpoint"
@@ -15,7 +15,7 @@ categories = ["api-bindings", "email", "web-programming::http-server"]
 name = "allymailer_wrapper"
 
 [dependencies]
-allymailer-rust-sdk = "1.1.1"
+allymailer-rust-sdk = "1.1.2"
 axum = { version = "0.7", default-features = false, features = ["tokio", "http1"] }
 md-5 = "0.10"
 serde_json = "1"
